@@ -13,6 +13,8 @@
 
 package com.kevalpatel2106.rulerpicker;
 
+import org.joda.time.LocalTime;
+
 /**
  * Created by Kevalpatel2106 on 29-Mar-18.
  * Listener to get the callback for {@link RulerValuePicker} events.
@@ -21,7 +23,9 @@ package com.kevalpatel2106.rulerpicker;
  */
 public interface RulerValuePickerListener {
 
-    void onValueChange(int selectedValue);
+    void onValueChange(LocalTime startTime, LocalTime endTime);
 
-    void onIntermediateValueChange(int selectedValue);
+    void onIntermediateValueChange(LocalTime startTime, LocalTime endTime);
+
+    void onTimePicked(LocalTime time, boolean isStart);
 }

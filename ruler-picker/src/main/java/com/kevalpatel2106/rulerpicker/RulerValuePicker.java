@@ -13,13 +13,12 @@
 
 package com.kevalpatel2106.rulerpicker;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Path;
 import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -31,10 +30,18 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
+import android.widget.Button;
 import android.widget.LinearLayout;
+
+import org.joda.time.LocalTime;
+
+import static com.kevalpatel2106.rulerpicker.RulerView.MINUTES_DELTA;
+import static com.kevalpatel2106.rulerpicker.RulerView.gapsInHour;
 
 
 /**
@@ -52,7 +59,11 @@ import android.widget.LinearLayout;
  *
  * @see <a href="https://github.com/dwfox/DWRulerView>Original Repo</a>
  */
-public final class RulerValuePicker extends FrameLayout implements ObservableHorizontalScrollView.ScrollChangedListener {
+public final class RulerValuePicker extends LinearLayout implements ObservableHorizontalScrollView.ScrollChangedListener {
+
+    public static final String TAG = RulerValuePicker.class.getName();
+
+    RulerPickerState state = RulerPickerState.IDLE;
 
     /**
      * Left side empty view to add padding to the ruler.
@@ -89,15 +100,20 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
     @Nullable
     private RulerValuePickerListener mListener;
 
-    @SuppressWarnings("NullableProblems")
-    @NonNull
-    private Paint mNotchPaint;
-
-    @SuppressWarnings("NullableProblems")
-    @NonNull
-    private Path mNotchPath;
+    int centerValue;
+    int startValue;
+    int endValue;
 
     private int mNotchColor = Color.WHITE;
+
+    private Button button;
+
+    /* start picker variables */
+    private Picker startPicker;
+
+    /* end picker variables */
+    private Picker endPicker;
+
 
     /**
      * Public constructor.
@@ -190,31 +206,19 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
                                     1, 1, 0.4f));
                 }
 
-                if (a.hasValue(R.styleable.RulerValuePicker_min_value) ||
-                        a.hasValue(R.styleable.RulerValuePicker_max_value)) {
-                    setMinMaxValue(a.getInteger(R.styleable.RulerValuePicker_min_value, 0),
-                            a.getInteger(R.styleable.RulerValuePicker_max_value, 100));
-                }
             } finally {
                 a.recycle();
             }
         }
 
-        //Prepare the notch color.
-        mNotchPaint = new Paint();
-        prepareNotchPaint();
+        startPicker = new Picker(true);
+        startPicker.setCircleColor(Color.BLUE);
 
-        mNotchPath = new Path();
+        endPicker = new Picker(false);
+        endPicker.setCircleColor(Color.RED);
+
     }
 
-    /**
-     * Create the paint for notch. This will
-     */
-    private void prepareNotchPaint() {
-        mNotchPaint.setColor(mNotchColor);
-        mNotchPaint.setStrokeWidth(5f);
-        mNotchPaint.setStyle(Paint.Style.FILL_AND_STROKE);
-    }
 
     /**
      * Programmatically add the children to the view.
@@ -229,9 +233,53 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
      * <ul><b>{@link RulerView}:</b> Ruler view will contain the ruler with indicator.</ul>
      * </li>
      */
+    @SuppressLint("ClickableViewAccessibility")
     private void addChildViews() {
+
+        this.setOrientation(VERTICAL);
+        this.setGravity(Gravity.CENTER);
+
+        button = new Button(getContext());
+        button.setText(R.string.confirm_time);
+        button.setLayoutParams(new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        button.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                RulerPickerState oldState = state;
+                if(state == RulerPickerState.PICKING_END) {
+                    state = RulerPickerState.END_PICKED;
+                }
+                if(state == RulerPickerState.PICKING_START) {
+                    state = RulerPickerState.START_PICKED;
+                }
+                if(oldState != state) {
+                    invalidate();
+                }
+
+                if(mListener != null) {
+
+                    if(oldState == RulerPickerState.PICKING_START) {
+                        mListener.onTimePicked(getStartTime(), true);
+                    } else {
+                        mListener.onTimePicked(getEndTime(), false);
+                    }
+
+                }
+            }
+        });
+
+
         mHorizontalScrollView = new ObservableHorizontalScrollView(getContext(), this);
         mHorizontalScrollView.setHorizontalScrollBarEnabled(false); //Don't display the scrollbar
+
+//        mHorizontalScrollView.setScrollEnabled(false);
+        mHorizontalScrollView.setOnCustomTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                onTouchEvent(event);
+                return false;
+            }
+        });
 
         final LinearLayout rulerContainer = new LinearLayout(getContext());
 
@@ -254,14 +302,38 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
         //Add scroll view to this view.
         removeAllViews();
         addView(mHorizontalScrollView);
+        addView(button);
+
+
+        Log.d(TAG, "rullerContainerWidth:" + rulerContainer.getWidth());
+        Log.d(TAG, "rullerContainerHeight:" + rulerContainer.getHeight());
+
+
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        //Draw the top notch
-        canvas.drawPath(mNotchPath, mNotchPaint);
+        /* check to show button */
+        if(state == RulerPickerState.PICKING_START || state == RulerPickerState.PICKING_END) {
+            button.setVisibility(VISIBLE);
+            mHorizontalScrollView.setScrollEnabled(true);
+        } else {
+            button.setVisibility(GONE);
+            mHorizontalScrollView.setScrollEnabled(false);
+        }
+
+        if(state != RulerPickerState.PICKING_END) {
+            int startPickerX = getWidth()/2 - mRulerView.getIndicatorIntervalWidth() * (centerValue - startValue);
+            startPicker.draw(canvas, this, startPickerX, mRulerView.mHalfHeight, state != RulerPickerState.IDLE);
+        }
+
+        if(state != RulerPickerState.PICKING_START) {
+            int endPickerX = getWidth()/2 + mRulerView.getIndicatorIntervalWidth() * (endValue - centerValue);
+            endPicker.draw(canvas, this, endPickerX, mRulerView.mHalfHeight, state != RulerPickerState.IDLE);
+        }
+
     }
 
     @Override
@@ -281,24 +353,11 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
             rightParams.width = width / 2;
             mRightSpacer.setLayoutParams(rightParams);
 
-            calculateNotchPath();
 
             invalidate();
         }
     }
 
-    /**
-     * Calculate notch path. Notch will be in the triangle shape at the top-center of this view.
-     *
-     * @see #mNotchPath
-     */
-    private void calculateNotchPath() {
-        mNotchPath.reset();
-
-        mNotchPath.moveTo(getWidth() / 2 - 30, 0);
-        mNotchPath.lineTo(getWidth() / 2, 40);
-        mNotchPath.lineTo(getWidth() / 2 + 30, 0);
-    }
 
     /**
      * Scroll the ruler to the given value.
@@ -328,6 +387,72 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
     }
 
     /**
+     * method for setting this picker hour and minute using a LocalTime object
+     * @param time LocalTime object
+     * @return this TimePicker instance
+     */
+    public RulerValuePicker setStartTimePicker(LocalTime time) {
+        int newValue = newValueWithHour(time.getHourOfDay(), startValue);
+        newValue = newValueWithMinute(newValue, time.getMinuteOfHour());
+
+        startValue = newValue;
+        startPicker.setRulerValue(startValue);
+        startPicker.setTimeValue(mRulerView.getTimeValue(startValue));
+
+        invalidate();
+
+        return this;
+    }
+
+    /**
+     *  method for setting the hour value
+     *  @param hour the desired hour to be set
+     *  @return An instance of this TimePickerSpinner
+     */
+    int newValueWithHour(int hour, int value) {
+
+        /* check if hour is not greater than 23 */
+        if(hour > 23) {
+            hour = 23;
+        }
+
+        /* calculate value according to current minute*/
+        int newValue = hour * gapsInHour;
+        return decideNewValue(newValue);
+
+    }
+
+    /**
+     * method for setting the minute value
+     * @param minutes desired minutes to be set
+     * @return An instance of this TimePickerSpinner
+     */
+    int newValueWithMinute(int value, int minutes) {
+        if(minutes > 60) {
+            minutes = 55;
+        }
+
+        int minuteGap = (int) Math.ceil(minutes / MINUTES_DELTA);
+        int newValue = value + minuteGap;
+        return decideNewValue(newValue);
+
+    }
+
+    /**
+     * method for setting the new value
+     * check if new value is higher or lower than min/max value
+     * @param newValue New Value to be checked and set
+     */
+    private int decideNewValue(int newValue) {
+        if(newValue > getMaxValue()) {
+            return getMaxValue();
+        } else if(newValue < getMinValue()) {
+            return getMinValue();
+        }
+        return newValue;
+    }
+
+    /**
      * @return Get the current selected value.
      */
     public int getCurrentValue() {
@@ -345,14 +470,36 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
 
     @Override
     public void onScrollChanged() {
-        if (mListener != null) mListener.onIntermediateValueChange(getCurrentValue());
+
+        /* update values */
+        centerValue = getCurrentValue();
+
+        if(centerValue + gapsInHour < mRulerView.getMaxValue()) {
+            endValue = centerValue + gapsInHour;
+        } else {
+            endValue = mRulerView.getMaxValue();
+        }
+
+        if(centerValue - gapsInHour > mRulerView.getMinValue()) {
+            startValue = centerValue - gapsInHour;
+        } else {
+            startValue = getMinValue();
+        }
+
+        startPicker.setRulerValue(startValue);
+        endPicker.setRulerValue(endValue);
+        startPicker.setTimeValue(mRulerView.getTimeValue(startValue));
+        endPicker.setTimeValue(mRulerView.getTimeValue(endValue));
+
+        if (mListener != null) mListener.onIntermediateValueChange(getStartTime(), getEndTime());
+
     }
 
     @Override
     public void onScrollStopped() {
         makeOffsetCorrection(mRulerView.getIndicatorIntervalWidth());
         if (mListener != null) {
-            mListener.onValueChange(getCurrentValue());
+            mListener.onValueChange(getStartTime(), getEndTime());
         }
     }
 
@@ -380,6 +527,38 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
         selectValue(ss.value);
     }
 
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        super.onTouchEvent(event);
+
+        int action = event.getActionMasked();
+        float initialX = event.getX();
+        float initialY = event.getY();
+
+        switch (action) {
+
+            case MotionEvent.ACTION_DOWN:
+                if(state != RulerPickerState.PICKING_START && state != RulerPickerState.PICKING_END) {
+                    handleIdleStateClick(initialX, initialY);
+                }
+                break;
+        }
+
+        return true;
+    }
+
+    void handleIdleStateClick(float x, float y) {
+        if(startPicker.isInside(x, y)) {
+            state = RulerPickerState.PICKING_START;
+        } else if(endPicker.isInside(x,y)) {
+            state = RulerPickerState.PICKING_END;
+        }
+        invalidate();
+    }
+
+
+
     //**********************************************************************************//
     //******************************** GETTERS/SETTERS *********************************//
     //**********************************************************************************//
@@ -405,12 +584,10 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
 
     /**
      * @param notchColor Integer color of the notch to display. Default color os {@link Color#WHITE}.
-     * @see #prepareNotchPaint()
      * @see #getNotchColor()
      */
     public void setNotchColor(@ColorInt final int notchColor) {
         mNotchColor = notchColor;
-        prepareNotchPaint();
         invalidate();
     }
 
@@ -548,7 +725,6 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
 
     /**
      * @return Get the minimum value displayed on the ruler.
-     * @see #setMinMaxValue(int, int)
      * @see RulerView#mMinValue
      */
     @CheckResult
@@ -558,7 +734,6 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
 
     /**
      * @return Get the maximum value displayed on the ruler.
-     * @see #setMinMaxValue(int, int)
      * @see RulerView#mMaxValue
      */
     @CheckResult
@@ -566,22 +741,14 @@ public final class RulerValuePicker extends FrameLayout implements ObservableHor
         return mRulerView.getMaxValue();
     }
 
-    /**
-     * Set the maximum value to display on the ruler. This will decide the range of values and number
-     * of indicators that ruler will draw.
-     *
-     * @param minValue Value to display at the left end of the ruler. This can be positive, negative
-     *                 or zero. Default minimum value is 0.
-     * @param maxValue Value to display at the right end of the ruler. This can be positive, negative
-     *                 or zero.This value must be greater than min value. Default minimum value is 100.
-     * @see #getMinValue()
-     * @see #getMaxValue()
-     */
-    public void setMinMaxValue(final int minValue, final int maxValue) {
-        mRulerView.setValueRange(minValue, maxValue);
-        invalidate();
-        selectValue(minValue);
+    public LocalTime getStartTime() {
+        return new LocalTime(startValue / gapsInHour, (startValue % gapsInHour) * MINUTES_DELTA);
     }
+
+    public LocalTime getEndTime() {
+        return new LocalTime(endValue / gapsInHour, (endValue % gapsInHour) * MINUTES_DELTA);
+    }
+
 
     /**
      * @return Get distance between two indicator in pixels.

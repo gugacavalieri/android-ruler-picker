@@ -28,6 +28,9 @@ import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Created by Keval Patel on 28 Mar 2018.
  * <p>
@@ -39,6 +42,15 @@ import android.view.View;
  */
 
 final class RulerView extends View {
+
+    public static final int MINUTES_DELTA = 5;
+    public static final String SPACE_DIVIDER = ":";
+    public static final String LEADING_ZERO = "0";
+
+    private List<String> timeIntervals;
+
+    public static final int gapsInHour = 60 / MINUTES_DELTA;
+    int mHalfHeight;
 
     /**
      * Height of the view. This view height is measured in {@link #onMeasure(int, int)}.
@@ -61,6 +73,8 @@ final class RulerView extends View {
      */
     private Paint mTextPaint;
 
+    private Paint mTimelinePaint;
+
     /**
      * Distance interval between two subsequent indicators on the ruler.
      *
@@ -73,7 +87,6 @@ final class RulerView extends View {
      * Minimum value. This value will be displayed at the left-most end of the ruler. This value
      * must be less than {@link #mMaxValue}.
      *
-     * @see #setValueRange(int, int)
      * @see #getMinValue()
      */
     private int mMinValue = 0 /* Default value */;
@@ -82,7 +95,6 @@ final class RulerView extends View {
      * Maximum value. This value will be displayed at the right-most end of the ruler. This value
      * must be greater than {@link #mMinValue}.
      *
-     * @see #setValueRange(int, int)
      * @see #getMaxValue()
      */
     private int mMaxValue = 100 /* Default maximum value */;
@@ -96,7 +108,7 @@ final class RulerView extends View {
      * @see #setIndicatorHeight(float, float)
      * @see #getLongIndicatorHeightRatio()
      */
-    private float mLongIndicatorHeightRatio = 0.6f /* Default value */;
+    private float mLongIndicatorHeightRatio = 0.05f /* Default value */;
 
     /**
      * Ratio of short indicator height to the ruler height. This value must be between 0 to 1. The
@@ -107,7 +119,7 @@ final class RulerView extends View {
      * @see #setIndicatorHeight(float, float)
      * @see #getShortIndicatorHeightRatio()
      */
-    private float mShortIndicatorHeightRatio = 0.4f /* Default value */;
+    private float mShortIndicatorHeightRatio = 0.03f /* Default value */;
 
     /**
      * Actual height of the long indicator in pixels. This height is derived from
@@ -161,6 +173,7 @@ final class RulerView extends View {
     @Dimension
     private float mIndicatorWidthPx = 4f;
 
+
     public RulerView(@NonNull final Context context) {
         super(context);
         parseAttr(null);
@@ -189,7 +202,47 @@ final class RulerView extends View {
         parseAttr(attrs);
     }
 
+    /**
+     * method for loading time values into this picker
+     */
+    private void loadValues() {
+
+        timeIntervals = new ArrayList<>();
+        String hour;
+        String minute;
+
+        /* from hour 00:00 to 23:59 we generate values according to MINUTES_DELTA constant */
+        for(int hoursCounter = 0 ; hoursCounter < 24 ; hoursCounter ++) {
+            for (int minutesCounter = 0; minutesCounter < 60; minutesCounter = minutesCounter + MINUTES_DELTA) {
+
+                /* check if value needs a leading zero */
+                if(hoursCounter < 10) {
+                    hour = LEADING_ZERO + hoursCounter;
+                } else {
+                    hour = String.valueOf(hoursCounter);
+                }
+                if(minutesCounter < 10) {
+                    minute = LEADING_ZERO + minutesCounter;
+                } else {
+                    minute = String.valueOf(minutesCounter);
+                }
+
+                timeIntervals.add(hour + SPACE_DIVIDER + minute);
+            }
+        }
+
+        mMinValue = 0;
+        mMaxValue = timeIntervals.size() - 1;
+        mIndicatorInterval = 60 / MINUTES_DELTA;
+
+    }
+
+    private String getTimeRepresentation(int value) {
+        return timeIntervals.get(value);
+    }
+
     private void parseAttr(@Nullable AttributeSet attributeSet) {
+
         if (attributeSet != null) {
             TypedArray a = getContext().getTheme().obtainStyledAttributes(attributeSet,
                     R.styleable.RulerView,
@@ -227,19 +280,16 @@ final class RulerView extends View {
                     mShortIndicatorHeightRatio = a.getFraction(R.styleable.RulerView_short_height_height_ratio,
                             1, 1, 0.4f);
                 }
+
                 setIndicatorHeight(mLongIndicatorHeightRatio, mShortIndicatorHeightRatio);
 
-                if (a.hasValue(R.styleable.RulerView_min_value)) {
-                    mMinValue = a.getInteger(R.styleable.RulerView_min_value, 0);
-                }
-                if (a.hasValue(R.styleable.RulerView_max_value)) {
-                    mMaxValue = a.getInteger(R.styleable.RulerView_max_value, 100);
-                }
-                setValueRange(mMinValue, mMaxValue);
+
             } finally {
                 a.recycle();
             }
         }
+
+        loadValues();
         refreshPaint();
     }
 
@@ -257,16 +307,28 @@ final class RulerView extends View {
         mTextPaint.setTextSize(mTextSize);
         mTextPaint.setTextAlign(Paint.Align.CENTER);
 
+        mTimelinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        mTimelinePaint.setColor(mTextColor);
+        mTimelinePaint.setStyle(Paint.Style.STROKE);
+
         invalidate();
         requestLayout();
     }
 
+    private boolean isValueHour(int value) {
+        return value % gapsInHour == 0;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
+
+        /* draw timeline  */
+        drawTimeline(canvas);
+
         //Iterate through all value
         for (int value = 1; value < mMaxValue - mMinValue; value++) {
 
-            if (value % 5 == 0) {
+            if (isValueHour(value)) {
                 drawLongIndicator(canvas, value);
                 drawValueText(canvas, value);
             } else {
@@ -279,18 +341,35 @@ final class RulerView extends View {
 
         //Draw the last indicator.
         drawSmallIndicator(canvas, getWidth());
+
         super.onDraw(canvas);
     }
 
+//    @Override
+//    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+//        //Measure dimensions
+//        mViewHeight = MeasureSpec.getSize(heightMeasureSpec);
+//        mHalfHeight = mViewHeight / 2;
+//
+//        int viewWidth = (mMaxValue - mMinValue - 1) * mIndicatorInterval;
+//
+//        updateIndicatorHeight(mLongIndicatorHeightRatio, mShortIndicatorHeightRatio);
+//
+//        this.setMeasuredDimension(viewWidth, mViewHeight);
+//    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        //Measure dimensions
-        mViewHeight = MeasureSpec.getSize(heightMeasureSpec);
-        int viewWidth = (mMaxValue - mMinValue - 1) * mIndicatorInterval;
+
+        mViewHeight = 300;
+        mHalfHeight = mViewHeight / 2;
+
+        int width = (mMaxValue - mMinValue - 1) * mIndicatorInterval;
 
         updateIndicatorHeight(mLongIndicatorHeightRatio, mShortIndicatorHeightRatio);
 
-        this.setMeasuredDimension(viewWidth, mViewHeight);
+        //MUST CALL THIS
+        setMeasuredDimension(width, mViewHeight);
     }
 
     /**
@@ -315,10 +394,23 @@ final class RulerView extends View {
     private void drawSmallIndicator(@NonNull final Canvas canvas,
                                     final int value) {
         canvas.drawLine(mIndicatorInterval * value,
-                0,
+                mHalfHeight,
                 mIndicatorInterval * value,
-                mShortIndicatorHeight,
+                mHalfHeight - mShortIndicatorHeight,
                 mIndicatorPaint);
+    }
+
+    private void drawTimeline(@NonNull final Canvas canvas) {
+        canvas.drawLine(0, mHalfHeight, getWidth(), mHalfHeight - 2, mTimelinePaint);
+    }
+
+    public void drawStartTime(@NonNull final Canvas canvas,
+                              final int value) {
+        canvas.drawCircle(mIndicatorInterval * value, mHalfHeight, 2f, mTimelinePaint);
+    }
+
+    private int getValue(int hour, int minutes) {
+        return hour * gapsInHour + Math.round(minutes / MINUTES_DELTA);
     }
 
     /**
@@ -329,10 +421,12 @@ final class RulerView extends View {
      */
     private void drawLongIndicator(@NonNull final Canvas canvas,
                                    final int value) {
+
+
         canvas.drawLine(mIndicatorInterval * value,
-                0,
+                mHalfHeight,
                 mIndicatorInterval * value,
-                mLongIndicatorHeight,
+                mHalfHeight - mLongIndicatorHeight,
                 mIndicatorPaint);
     }
 
@@ -345,9 +439,9 @@ final class RulerView extends View {
      */
     private void drawValueText(@NonNull final Canvas canvas,
                                final int value) {
-        canvas.drawText(String.valueOf(value + mMinValue),
+        canvas.drawText(getTimeRepresentation(value),
                 mIndicatorInterval * value,
-                mLongIndicatorHeight + mTextPaint.getTextSize(),
+                mHalfHeight + mLongIndicatorHeight + mTextPaint.getTextSize(),
                 mTextPaint);
     }
 
@@ -435,7 +529,6 @@ final class RulerView extends View {
 
     /**
      * @return Get the minimum value displayed on the ruler.
-     * @see #setValueRange(int, int)
      */
     @CheckResult
     int getMinValue() {
@@ -444,27 +537,12 @@ final class RulerView extends View {
 
     /**
      * @return Get the maximum value displayed on the ruler.
-     * @see #setValueRange(int, int)
      */
     @CheckResult
     int getMaxValue() {
         return mMaxValue;
     }
 
-    /**
-     * Set the maximum value to display on the ruler. This will decide the range of values and number
-     * of indicators that ruler will draw.
-     *
-     * @param minValue Value to display at the left end of the ruler. This can be positive, negative
-     *                 or zero. Default minimum value is 0.
-     * @param maxValue Value to display at the right end of the ruler. This can be positive, negative
-     *                 or zero.This value must be greater than min value. Default minimum value is 100.
-     */
-    void setValueRange(final int minValue, final int maxValue) {
-        mMinValue = minValue;
-        mMaxValue = maxValue;
-        invalidate();
-    }
 
     /**
      * @return Get distance between two indicator in pixels.
@@ -543,5 +621,9 @@ final class RulerView extends View {
         updateIndicatorHeight(mLongIndicatorHeightRatio, mShortIndicatorHeightRatio);
 
         invalidate();
+    }
+
+    public String getTimeValue(int value) {
+        return timeIntervals.get(value);
     }
 }

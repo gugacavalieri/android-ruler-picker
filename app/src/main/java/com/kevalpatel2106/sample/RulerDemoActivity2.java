@@ -17,10 +17,17 @@ import android.os.Bundle;
 import android.support.design.widget.TextInputEditText;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.kevalpatel2106.rulerpicker.RulerValuePicker;
 import com.kevalpatel2106.rulerpicker.RulerValuePickerListener;
+
+import org.joda.time.LocalTime;
+
 
 public class RulerDemoActivity2 extends AppCompatActivity {
 
@@ -41,16 +48,33 @@ public class RulerDemoActivity2 extends AppCompatActivity {
         //Set the height picker
         final TextView heightPickerValueTv = findViewById(R.id.height_value_tv);
         final RulerValuePicker heightPicker = findViewById(R.id.height_ruler_picker);
+
+        final EditText diffEditTxt = findViewById(R.id.diffEditTxt);
+
+        Button saveBtnDiff = findViewById(R.id.saveBtnDiff);
+        saveBtnDiff.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                heightPicker.setStartTimePicker(heightPicker.getEndTime().minusMinutes(Integer.parseInt(diffEditTxt.getText().toString())));
+            }
+        });
+
         heightPicker.selectValue(156);
         heightPicker.setValuePickerListener(new RulerValuePickerListener() {
             @Override
-            public void onValueChange(final int selectedValue) {
-                heightPickerValueTv.setText(selectedValue + " cms");
+            public void onValueChange(LocalTime startTime, LocalTime endTime) {
+                heightPickerValueTv.setText("start:" + startTime.toString() + " | end:" + endTime.toString());
             }
 
             @Override
-            public void onIntermediateValueChange(final int selectedValue) {
-                heightPickerValueTv.setText(selectedValue + " cms");
+            public void onIntermediateValueChange(LocalTime startTime, LocalTime endTime) {
+                heightPickerValueTv.setText("start:" + startTime.toString() + " | end:" + endTime.toString());
+            }
+
+            @Override
+            public void onTimePicked(LocalTime time, boolean isStart) {
+
+                Toast.makeText(getApplicationContext(), "timePicked:" + time.toString() + "start:" + isStart, Toast.LENGTH_LONG).show();
             }
         });
 
@@ -60,15 +84,18 @@ public class RulerDemoActivity2 extends AppCompatActivity {
         weightPicker.selectValue(55);
         weightPicker.setValuePickerListener(new RulerValuePickerListener() {
             @Override
-            public void onValueChange(final int selectedValue) {
-                weightPickerValueTv.setText(selectedValue + " kgs");
-
+            public void onValueChange(LocalTime startTime, LocalTime endTime) {
+                weightPickerValueTv.setText("start:" + startTime.toString() + " | end:" + endTime.toString());
             }
 
             @Override
-            public void onIntermediateValueChange(final int selectedValue) {
-                weightPickerValueTv.setText(selectedValue + " kgs");
+            public void onIntermediateValueChange(LocalTime startTime, LocalTime endTime) {
+                weightPickerValueTv.setText("start:" + startTime.toString() + " | end:" + endTime.toString());
+            }
 
+            @Override
+            public void onTimePicked(LocalTime time, boolean isStart) {
+                Toast.makeText(getApplicationContext(), "timePicked:" + time.toString() + "start:" + isStart, Toast.LENGTH_LONG).show();
             }
         });
     }

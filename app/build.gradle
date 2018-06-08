@@ -40,4 +40,5 @@ dependencies {
     implementation 'de.hdodenhof:circleimageview:2.2.0'
     implementation 'com.jaredrummler:colorpicker:1.0.2'
     implementation 'com.xw.repo:bubbleseekbar:3.16'
+    implementation 'joda-time:joda-time:2.10'
 }

@@ -17,9 +17,7 @@ import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.text.Editable
 import android.text.TextWatcher
-import android.widget.Toast
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
-import com.kevalpatel2106.rulerpicker.RulerValuePickerListener
 import com.xw.repo.BubbleSeekBar
 import kotlinx.android.synthetic.main.activity_ruler_demo.*
 
@@ -184,8 +182,7 @@ class RulerDemoActivity : AppCompatActivity() {
             }
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                ruler_value_picker.setMinMaxValue(min_value_et.text.toString().toSafeInt(),
-                        max_value_et.text.toString().toSafeInt())
+
             }
 
         })
@@ -202,27 +199,15 @@ class RulerDemoActivity : AppCompatActivity() {
             }
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                ruler_value_picker.setMinMaxValue(min_value_et.text.toString().toSafeInt(),
-                        max_value_et.text.toString().toSafeInt())
+
             }
 
         })
 
-        ruler_value_picker.setMinMaxValue(min_value_et.text.toString().toSafeInt(),
-                max_value_et.text.toString().toSafeInt())
+
         ruler_value_picker.selectValue(130)
 
-        ruler_value_picker.setValuePickerListener(object : RulerValuePickerListener {
-            override fun onValueChange(value: Int) {
-                Toast.makeText(this@RulerDemoActivity, "User height is :$value cms", Toast.LENGTH_LONG).show()
-                current_value_tv.text = "$value"
-            }
 
-            override fun onIntermediateValueChange(selectedValue: Int) {
-                current_value_tv.text = "$selectedValue"
-            }
-
-        })
     }
 
 }

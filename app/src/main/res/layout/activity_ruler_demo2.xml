@@ -96,7 +96,7 @@
 
         <android.support.v7.widget.AppCompatTextView
             android:id="@+id/height_picker_heading"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
             android:layout_marginLeft="16dp"
@@ -123,21 +123,37 @@
             app:layout_constraintTop_toBottomOf="@+id/height_picker_heading"
             tools:text="165 cms" />
 
+        <EditText
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="20"
+            android:inputType="number"
+            app:layout_constraintBottom_toTopOf="@+id/height_value_tv"
+            app:layout_constraintLeft_toRightOf="@id/height_picker_heading"
+            android:id="@+id/diffEditTxt"
+            />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DIFF !"
+            app:layout_constraintLeft_toRightOf="@id/diffEditTxt"
+            app:layout_constraintTop_toTopOf="@id/diffEditTxt"
+            android:id="@+id/saveBtnDiff"
+            />
+
         <com.kevalpatel2106.rulerpicker.RulerValuePicker
             android:id="@+id/height_ruler_picker"
             android:layout_width="match_parent"
-            android:layout_height="100dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:background="@color/colorAccent"
-            app:indicator_color="@android:color/darker_gray"
+            android:background="@android:color/darker_gray"
+            app:indicator_color="@android:color/black"
             app:indicator_interval="8dp"
             app:indicator_width="2dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/height_value_tv"
-            app:max_value="250"
-            app:min_value="100"
-            app:notch_color="@color/colorPrimaryDark"
             app:ruler_text_size="4sp"
             tools:targetApi="lollipop" />
 
